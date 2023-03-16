@@ -25,7 +25,6 @@
 
 #include <gazebo_msgs/srv/get_entity_state.hpp>
 
-//#include <dmp/Trajectory.hpp>
 
 using namespace std::chrono_literals;
 
@@ -83,8 +82,6 @@ int cube_yaw_goal_deg = 10;
 double cube_yaw_goal= float(cube_yaw_goal_deg)/180 * M_PI;
 
 std::string reference_frame = "base_link";
-
-int rate = 100;
 double step_size = 0.001;
 rclcpp::Clock clk;
 rclcpp::Time time_pose_sensed;

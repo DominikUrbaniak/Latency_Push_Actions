@@ -44,8 +44,6 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
-
-
 def launch_setup(context, *args, **kargs):
     # Initialize Arguments
     ur_type = LaunchConfiguration("ur_type")
@@ -54,7 +52,6 @@ def launch_setup(context, *args, **kargs):
     safety_k_position = LaunchConfiguration("safety_k_position")
     # General arguments
     main_package = LaunchConfiguration("main_package")
-    #control_package = LaunchConfiguration("control_package")
     controllers_file = LaunchConfiguration("controllers_file")
     description_package = LaunchConfiguration("description_package")
     description_file = LaunchConfiguration("description_file")
@@ -133,9 +130,6 @@ def launch_setup(context, *args, **kargs):
             on_exit=[rviz_node],
         )
     )
-
-
-
     # There may be other controllers of the joints, but this is the initially-started one
     initial_joint_controller_spawner_started = Node(
         package="controller_manager",
@@ -180,16 +174,9 @@ def launch_setup(context, *args, **kargs):
         output="screen",
     )
 
-    rviz_world_updater = Node(
-        package=main_package,
-        executable="rviz_world_updater",
-        name="rviz_world_updater",
-        output="screen",
-    )
-
     velocity_controller = Node(
         package=main_package,
-        executable="velocity_controller",#cartesian_
+        executable="velocity_controller",
         name="velocity_controller",
         output="screen",
     )
@@ -206,7 +193,7 @@ def launch_setup(context, *args, **kargs):
         )
     )
 
-    #delay publisher after object spawn
+    #delay world setup after robot spawn
     delay_world_setup_after_robot_spawner = RegisterEventHandler(
         event_handler=OnProcessStart(
             target_action=gazebo_spawn_robot,
@@ -216,17 +203,6 @@ def launch_setup(context, *args, **kargs):
                     )],
         )
     )
-
-    #delay world_setup after publisher
-    #delay_world_setup_after_publisher = RegisterEventHandler(
-    #    event_handler=OnProcessStart(
-    #        target_action=gazebo_publish_states,
-    #        on_start=[TimerAction(
-    #                    period=1.0,
-    #                    actions=[setup_world],
-    #                )],
-    #    )
-    #)
 
     nodes_to_start = [
         robot_state_publisher_node,
@@ -239,11 +215,9 @@ def launch_setup(context, *args, **kargs):
         gazebo_objects_spawn,
         delay_velocity_controller_after_robot_spawn,
         delay_world_setup_after_robot_spawner,
-
     ]
 
     return nodes_to_start
-
 
 def generate_launch_description():
     declared_arguments = []
@@ -287,13 +261,6 @@ def generate_launch_description():
         Usually the argument is not set, it enables use of a custom setup.',
         )
     )
-    #declared_arguments.append(
-    #    DeclareLaunchArgument(
-    #        "control_package",
-    #        default_value="robot_control",
-    #        description='Package with the robot control scripts',
-    #    )
-    #)
 
     declared_arguments.append(
         DeclareLaunchArgument(

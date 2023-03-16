@@ -2,6 +2,9 @@
 // subscribe to joint_poses
 // publish to velocity controller
 
+// This program controls the UR robot arm to push an object using a quadratic interpolation
+// to generate joint velocities based on the deviation between the desired and actual end-effector position
+
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -15,8 +18,6 @@
 
 #include "custom_interfaces/srv/rob_conf.hpp"
 
-//#include <dmp/Trajectory.hpp>
-
 #include <iostream>
 #include <fstream>
 
@@ -24,91 +25,71 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 
-//#include <eigen3/Eigen/Eigen>
-//#include <eigen3/Eigen/Core>
-//#include <eigen3/Eigen/Geometry>
-
-
-//#include <dmp/Trajectory.hpp>
-
 using namespace std::chrono_literals;
-//using namespace DmpBbo;
 using namespace std::placeholders;
 
-/* This example creates a subclass of Node and uses std::bind() to register a
-* member function as a callback from the timer. */
+// Define main program parameters
 
-//################# Main parameters #############################
-
-int control_rate = 500;
+int control_rate = 500;                                 // frequency of control loop
 int control_rate_ms = (float)1/control_rate * 1000;
 
-int rate = 1000;
+// ROS node parameters
+int rate = 1000;                                        // rate of ROS node
 bool activate_stabilization = true;
 bool got_initial_config = false;
-//double threshold = 0.01;
-double vel_max = M_PI;
-double scaler_cubic = 50000;
-int scaler_square = 10000;
-double scaler_lin = 400;
-int counter = 0;
+bool logging = false;                                   // flag to enable logging
+int counter = 0;                                        //counting the steps backwards after cube reached the goal
 
-//Six UR joints plus one for the gripper (must be the last)
-int n_joints = 12;
-//Five passive gripper joints that move according to the one controlled gripper joint
-int n_passive_joints = 5;
-double vel;
-std::vector<double> vels;
-bool get_time_stamp = false;
-double difference;
-rclcpp::Clock clk;
-rclcpp::Time stamp;
-rclcpp::Time eef_vc_stamp;
-double time_pose_received;
-std::vector<double> time_stamps;
-int secs;
-bool logging = false;
+// Joint parameters
+int n_joints = 12;                                      // number of UR joints plus gripper joint
+int n_passive_joints = 5;                               // number of passive gripper joints
+double vel_max = M_PI;                                  // maximum joint velocity
+double vel;                                             // joint velocity
+std::vector<double> vels;                               // vector of joint velocities
+std::vector<std::vector<double>> history;               // vector of historical joint configurations
 
-std::ofstream myfile;
-std::string filename;
-std::vector<std::vector<double>> history;
+// Scaling factors for motion planning
+double scaler_cubic = 50000;                            // scaling factor for cubic interpolation
+int scaler_square = 10000;                              // scaling factor for square function
+double scaler_lin = 400;                                // scaling factor for linear function
 
-std::string reference_frame = "base_link";
-geometry_msgs::msg::TransformStamped transform_ur_eef;
-std::vector<double> tcp_position;
-std::vector<double> ik_offsets = {0.025,-0.002,0.055};
-//std::vector<double> ik_offsets = {0.0,-0.0,0.0};
-std::vector<double> multipliers = {-1,-1,1};
-bool trigger = false;
-bool save_params_to_csv = false;
-std::string dir_path = "docs/data/push_translation/";
-//bool set_ur_joint_id = true;
+// Time parameters
+std::vector<double> time_stamps;                        // vector of time stamps
+bool get_time_stamp = false;                            // flag to get time stamp
+double time_pose_received;                              // time that end-effector pose was received
+rclcpp::Clock clk;                                      // ROS clock
+rclcpp::Time stamp;                                     // time stamp for current state of robot arm
+rclcpp::Time eef_vc_stamp;                              // time stamp for receiving end-effector pose
+int secs;                                               // number of seconds for time stamp
+bool trigger = false;                                   // flag to trigger moment when cube reached its goal pose
 
+// End-effector parameters
+double difference;                                      // difference between desired and actual end-effector pose
+std::vector<double> tcp_position;                       // TCP position
+std::string reference_frame = "base_link";              // reference frame for transform
+std::vector<double> ik_offsets = {0.025,-0.002,0.055};  // offsets for inverse kinematics
+std::vector<double> multipliers = {-1,-1,1};            // multipliers for inverse kinematics
+geometry_msgs::msg::TransformStamped transform_ur_eef;  // transform from UR base to end-effector frame
 
-//std::vector<std::string> ur_joint_names = {"shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"};
-/*std::map<std::string, int> map_joints_to_joint_states_id = {
-    { "shoulder_pan_joint", 0 },
-    { "shoulder_lift_joint", 13 },
-    { "elbow_joint", 3 },
-    { "wrist_1_joint", 8 },
-    { "wrist_2_joint", 12 },
-    { "wrist_3_joint", 11 },
-    { "gripper_right_driver_joint", 9 }
-};*/
+// Logging parameters
+std::ofstream myfile;                                   // file for logging data
+std::string filename;                                   // name of log file
+bool save_params_to_csv = false;                        // flag to save parameters to CSV file
+std::string dir_path = "docs/data/push_translation/";   // path to save CSV file
 
-std::map<std::string, int> map_joints_to_joint_states_id = {
-    { "shoulder_pan_joint", 0 },
-    { "shoulder_lift_joint", 1 },
-    { "elbow_joint", 8 },
-    { "wrist_1_joint", 2 },
-    { "wrist_2_joint", 3 },
-    { "wrist_3_joint", 4 },
-    { "gripper_right_driver_joint", 5 },
-    { "gripper_left_driver_joint", 7 },
-    { "gripper_right_spring_link_joint", 6 },
-    { "gripper_left_spring_link_joint", 11 },
-    { "gripper_right_follower_joint", 9 },
-    { "gripper_left_follower_joint", 10 }
+std::map<std::string, int> map_joints_to_joint_states_id = { // map joint names to joint states IDs
+  { "shoulder_pan_joint", 0 },
+  { "shoulder_lift_joint", 1 },
+  { "elbow_joint", 8 },
+  { "wrist_1_joint", 2 },
+  { "wrist_2_joint", 3 },
+  { "wrist_3_joint", 4 },
+  { "gripper_right_driver_joint", 5 },
+  { "gripper_left_driver_joint", 7 },
+  { "gripper_right_spring_link_joint", 6 },
+  { "gripper_left_spring_link_joint", 11 },
+  { "gripper_right_follower_joint", 9 },
+  { "gripper_left_follower_joint", 10 }
 };
 
 std::vector<double> current_joint_configuration(n_joints,0.0);
@@ -129,250 +110,229 @@ double dev2vel2(double deviation){
   return vel;
 }
 
-/*double dev2vel(double deviation){
-  double vel = scaler_cubic*pow(deviation,3);//std::exp()
-  if(vel > vel_max){vel = vel_max;}
-  else if(vel < -vel_max){vel = -vel_max;}
-  return vel;
-}
-
-double dev2vel3(double deviation){
-  double vel;
-  vel = scaler_lin*deviation;//std::exp()
-
-  if(vel > vel_max){vel = vel_max;}
-  else if(vel < -vel_max){vel = -vel_max;}
-  return vel;
-}*/
-
-
+// Define VelocityPublisher class, derived from rclcpp::Node
 class VelocityPublisher : public rclcpp::Node
 {
-  public:
-    VelocityPublisher() : Node("velocity_publisher")
-    {
-      subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
+public:
+  // Constructor
+  VelocityPublisher() : Node("velocity_publisher")
+  {
+    // Subscribe to joint state topic and set callback function
+    subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
       "/joint_states", rate, std::bind(&VelocityPublisher::topic_callback, this, _1));
 
-      publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/forward_velocity_controller/commands", control_rate);
-      timer_ = this->create_wall_timer(
+    // Create publisher for velocity commands
+    publisher_ = this->create_publisher<std_msgs::msg::Float64MultiArray>(
+      "/forward_velocity_controller/commands", control_rate);
+
+    // Create timer for sending velocity commands
+    timer_ = this->create_wall_timer(
       std::chrono::milliseconds(control_rate_ms), std::bind(&VelocityPublisher::timer_callback, this));
 
-      service_ = this->create_service<custom_interfaces::srv::RobConf>("/velocity_controller/set_desired_joint_config", std::bind(&VelocityPublisher::set_desired_joint_config, this, _1, _2));
+    // Create service for setting desired joint configuration
+    service_ = this->create_service<custom_interfaces::srv::RobConf>(
+      "/velocity_controller/set_desired_joint_config",
+      std::bind(&VelocityPublisher::set_desired_joint_config, this, _1, _2));
 
-      tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-      tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    // Create buffer and listener for TF2 transformations
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  }
+
+private:
+  // Define callback function for joint state topic subscription
+  void topic_callback(const sensor_msgs::msg::JointState &msg) const {
+    // Map the joint names to their indices in the message
+    current_joint_configuration[0] = msg.position[map_joints_to_joint_states_id["shoulder_pan_joint"]];
+    current_joint_configuration[1] = msg.position[map_joints_to_joint_states_id["shoulder_lift_joint"]];
+    current_joint_configuration[2] = msg.position[map_joints_to_joint_states_id["elbow_joint"]];
+    current_joint_configuration[3] = msg.position[map_joints_to_joint_states_id["wrist_1_joint"]];
+    current_joint_configuration[4] = msg.position[map_joints_to_joint_states_id["wrist_2_joint"]];
+    current_joint_configuration[5] = msg.position[map_joints_to_joint_states_id["wrist_3_joint"]];
+    current_joint_configuration[6] = msg.position[map_joints_to_joint_states_id["gripper_right_driver_joint"]];
+    current_joint_configuration[7] = msg.position[map_joints_to_joint_states_id["gripper_left_driver_joint"]];
+    current_joint_configuration[8] = msg.position[map_joints_to_joint_states_id["gripper_right_spring_link_joint"]];
+    current_joint_configuration[9] = msg.position[map_joints_to_joint_states_id["gripper_left_spring_link_joint"]];
+    current_joint_configuration[10] = msg.position[map_joints_to_joint_states_id["gripper_right_follower_joint"]];
+    current_joint_configuration[11] = msg.position[map_joints_to_joint_states_id["gripper_left_follower_joint"]];
+
+    try {
+      // Get the transformation between the reference frame and the end effector frame
+      transform_ur_eef = tf_buffer_->lookupTransform(reference_frame, "wrist_3_link", tf2::TimePointZero);
+    } catch (const tf2::TransformException & ex) {
+      // If the transformation lookup fails, log an error and return
+      RCLCPP_INFO(this->get_logger(), "Could not transform %s to %s: %s", reference_frame.c_str(), "wrist_3_link", ex.what());
+      return;
     }
 
+    // Record the timestamp when the end effector position was last updated
+    eef_vc_stamp = clk.now();
 
-  private:
-    void topic_callback(const sensor_msgs::msg::JointState & msg) const
-    {
-
-
-      current_joint_configuration[0] = msg.position[map_joints_to_joint_states_id["shoulder_pan_joint"]];
-      current_joint_configuration[1] = msg.position[map_joints_to_joint_states_id["shoulder_lift_joint"]];
-      current_joint_configuration[2] = msg.position[map_joints_to_joint_states_id["elbow_joint"]];
-      current_joint_configuration[3] = msg.position[map_joints_to_joint_states_id["wrist_1_joint"]];
-      current_joint_configuration[4] = msg.position[map_joints_to_joint_states_id["wrist_2_joint"]];
-      current_joint_configuration[5] = msg.position[map_joints_to_joint_states_id["wrist_3_joint"]];
-      current_joint_configuration[6] = msg.position[map_joints_to_joint_states_id["gripper_right_driver_joint"]];
-      current_joint_configuration[7] = msg.position[map_joints_to_joint_states_id["gripper_left_driver_joint"]];
-      current_joint_configuration[8] = msg.position[map_joints_to_joint_states_id["gripper_right_spring_link_joint"]];
-      current_joint_configuration[9] = msg.position[map_joints_to_joint_states_id["gripper_left_spring_link_joint"]];
-      current_joint_configuration[10] = msg.position[map_joints_to_joint_states_id["gripper_right_follower_joint"]];
-      current_joint_configuration[11] = msg.position[map_joints_to_joint_states_id["gripper_left_follower_joint"]];
-      //RCLCPP_INFO(this->get_logger(), "Current joint configuration: '(%f, %f, %f, %f, %f, %f)'", current_joint_configuration[0], current_joint_configuration[1], current_joint_configuration[2], current_joint_configuration[3], current_joint_configuration[4], current_joint_configuration[5]);
-      //RCLCPP_INFO(this->get_logger(), "Message size: %ld", msg.position.size());
-      try {
-        transform_ur_eef = tf_buffer_->lookupTransform(
-          reference_frame, "wrist_3_link",
-          tf2::TimePointZero);
-        //time_eef = clk.now();
-      } catch (const tf2::TransformException & ex) {
-        RCLCPP_INFO(
-          this->get_logger(), "Could not transform %s to %s: %s",
-          reference_frame.c_str(), "wrist_3_link", ex.what());
-        return;
+    // Compute the TCP position using the end effector position and the multipliers and offsets
+    tcp_position = {
+      (transform_ur_eef.transform.translation.x * multipliers[0]) - ik_offsets[0],
+      (transform_ur_eef.transform.translation.y * multipliers[1]) - ik_offsets[1],
+      (transform_ur_eef.transform.translation.z * multipliers[2]) - ik_offsets[2]
+    };
+  }
+  void set_desired_joint_config(
+  std::shared_ptr<custom_interfaces::srv::RobConf::Request> req,
+  std::shared_ptr<custom_interfaces::srv::RobConf::Response> res
+  )
+  {
+    // Update desired joint configuration
+    for (int i = 0; i < n_joints; i++) {
+      if (i < 7) {
+        desired_joint_configuration[i] = req->conf[i];
       }
-      eef_vc_stamp = clk.now();
-      tcp_position = {(transform_ur_eef.transform.translation.x*multipliers[0])-ik_offsets[0],(transform_ur_eef.transform.translation.y*multipliers[1])-ik_offsets[1],(transform_ur_eef.transform.translation.z*multipliers[2])-ik_offsets[2]};
+      else if (i >= 10) {
+        desired_joint_configuration[i] = -req->conf[6];
+      }
+      else {
+        desired_joint_configuration[i] = req->conf[6];
+      }
     }
 
-    void set_desired_joint_config(std::shared_ptr<custom_interfaces::srv::RobConf::Request>  req,
-             std::shared_ptr<custom_interfaces::srv::RobConf::Response> res)
+    // Update time stamps
+    time_stamps = req->time_stamps;
+
+    // Start logging
+    if (req->start) {
+      save_params_to_csv = true;
+      filename = dir_path + std::to_string((int)time_stamps[1]) + "_times_" + std::to_string(scaler_square) + "vc_" + std::to_string(control_rate_ms) + "ms.csv";
+      myfile.open(filename);
+      myfile << "trigger,secs_vc,secs_eef_vc,secs_eef,secs_sensed,secs_delayed,secs_ik,eef_vc_x,eef_vc_y,eef_vc_z,vels[0],vels[1],vels[2],vels[3],vels[4],vels[5],desired_conf[0],desired_conf[1],desired_conf[2],desired_conf[3],desired_conf[4],desired_conf[5],current_conf[0],current_conf[1],current_conf[2],current_conf[3],current_conf[4],current_conf[5]\n";
+      RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "started logging...");
+    }
+
+    // Update trigger
+    trigger = req->event_trigger;
+    if (req->event_trigger) {
+      get_time_stamp = true;
+    }
+
+    // Save history to CSV
+    if (save_params_to_csv) {
+      secs = time_stamps[1];
+      history.push_back({
+        (float)trigger,
+        stamp.seconds() - secs,
+        eef_vc_stamp.seconds() - secs,
+        time_stamps[2] - secs,
+        time_stamps[3] - secs,
+        time_stamps[4] - secs,
+        time_stamps[5],
+        tcp_position[0],
+        tcp_position[1],
+        tcp_position[2],
+        vels[0],
+        vels[1],
+        vels[2],
+        vels[3],
+        vels[4],
+        vels[5],
+        desired_joint_configuration[0],
+        desired_joint_configuration[1],
+        desired_joint_configuration[2],
+        desired_joint_configuration[3],
+        desired_joint_configuration[4],
+        desired_joint_configuration[5],
+        current_joint_configuration[0],
+        current_joint_configuration[1],
+        current_joint_configuration[2],
+        current_joint_configuration[3],
+        current_joint_configuration[4],
+        current_joint_configuration[5]
+      });
+    }
+
+  // Set response success
+  res->success = true;
+
+  }
+
+  void timer_callback()
+  {
+    // Declare variables and initialize if necessary
+    auto message = std_msgs::msg::Float64MultiArray();
+    std::vector<float> diffs(n_joints);
+    std::vector<float> vels(n_joints);
+
+    // Handle initial configuration
+    if (!got_initial_config)
     {
-      //scaler_square = req->vc_scaler;
-      for(int i = 0; i < n_joints; i++)
+      desired_joint_configuration = current_joint_configuration;
+      got_initial_config = true;
+      RCLCPP_INFO(this->get_logger(), "Saving as desired configuration: '(%f, %f, %f, %f, %f, %f, %f)'",
+                  desired_joint_configuration[0], desired_joint_configuration[1], desired_joint_configuration[2],
+                  desired_joint_configuration[3], desired_joint_configuration[4], desired_joint_configuration[5],
+                  desired_joint_configuration[6]);
+    }
+
+    // Calculate velocity for each joint
+    for (int i = 0; i < n_joints; i++)
+    {
+      diffs[i] = desired_joint_configuration[i] - current_joint_configuration[i];
+      float vel = dev2vel2(diffs[i]);
+      vels[i] = vel;
+      message.data.push_back(vel);
+    }
+
+    // Publish velocity message and save data to history
+    publisher_->publish(message);
+    if (get_time_stamp)
+    {
+      if (counter >= 30)
       {
-        if(i<7){
-          desired_joint_configuration[i] = req->conf[i];
-        }
-        else if(i>=10){
-          desired_joint_configuration[i] = -req->conf[6];
-        }
-        else{
-          desired_joint_configuration[i] = req->conf[6];
-        }
-      }
-      time_stamps = req->time_stamps;
-
-      if(req->start){
-        save_params_to_csv = true;
-        filename = dir_path + std::to_string((int)time_stamps[1]) + "_times_" + std::to_string(scaler_square) + "vc_" + std::to_string(control_rate_ms)+ "ms.csv";
-        myfile.open(filename);
-        myfile << "trigger,secs_vc,secs_eef_vc,secs_eef,secs_sensed,secs_delayed,secs_ik,eef_vc_x,eef_vc_y,eef_vc_z,vels[0],vels[1],vels[2],vels[3],vels[4],vels[5],desired_conf[0],desired_conf[1],desired_conf[2],desired_conf[3],desired_conf[4],desired_conf[5],current_conf[0],current_conf[1],current_conf[2],current_conf[3],current_conf[4],current_conf[5]\n";
-        RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "started logging...");
-      }
-      trigger = req->event_trigger;
-      if(req->event_trigger){
-
-        //RCLCPP_INFO(this->get_logger(), "Receiving event trigger with time stamp %f -> ready to get time stamp", time_pose_received);
-        //save_params_to_csv = false;
-        get_time_stamp = true;
-      }
-      if(save_params_to_csv){
-        secs = time_stamps[1];
-        //history.push_back({(float)trigger,(int)secs,stamp.seconds()-secs, eef_vc_stamp.seconds()-secs,time_stamps[2]-secs,time_stamps[3]-secs,time_stamps[4]-secs,time_stamps[5],tcp_position[0],tcp_position[1],tcp_position[2]});
-        history.push_back({(float)trigger,stamp.seconds()-secs, eef_vc_stamp.seconds()-secs,time_stamps[2]-secs,time_stamps[3]-secs,time_stamps[4]-secs,time_stamps[5],tcp_position[0],tcp_position[1],tcp_position[2],vels[0],vels[1],vels[2],vels[3],vels[4],vels[5],desired_joint_configuration[0],desired_joint_configuration[1],desired_joint_configuration[2],desired_joint_configuration[3],desired_joint_configuration[4],desired_joint_configuration[5],current_joint_configuration[0],current_joint_configuration[1],current_joint_configuration[2],current_joint_configuration[3],current_joint_configuration[4],current_joint_configuration[5]});
-      }
-      /*if(req->dmp_mode){
-        //call service offered by python node with client (in other thread?)
-      }*/
-      res->success = true;
-      //RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "new desired configuration is set to (%f, %f, %f, %f, %f, %f, %f)", req->conf[0], req->conf[1], req->conf[2], req->conf[3], req->conf[4], req->conf[5], req->conf[6]);
-
-    }
-
-    void timer_callback()
-    {
-      auto message = std_msgs::msg::Float64MultiArray();
-      if(!got_initial_config)
-      {
-        desired_joint_configuration = current_joint_configuration;
-        got_initial_config = true;
-        RCLCPP_INFO(this->get_logger(), "Saving as desired configuration: '(%f, %f, %f, %f, %f, %f, %f)'", desired_joint_configuration[0], desired_joint_configuration[1], desired_joint_configuration[2], desired_joint_configuration[3], desired_joint_configuration[4], desired_joint_configuration[5], desired_joint_configuration[6]);
-        /*int trajpoints = 100;
-        double start_time = 0.0;
-        double cycletime = 5.0;
-        Eigen::VectorXd ts = Eigen::VectorXd::LinSpaced(trajpoints,start_time,start_time+cycletime);
-        Eigen::VectorXd goal_pose_(n_goal_elements_);
-        Eigen::VectorXd curr_pose_(n_goal_elements_);
-        curr_pose_ << 0,0,0,0,0,0;
-        goal_pose_ << 0.1,0,0.5,-1,0,0;
-
-
-        Trajectory traj = Trajectory::generateMinJerkTrajectory(ts, curr_pose_, goal_pose_);
-        if(save_traj_to_file)
+        if (save_params_to_csv)
         {
-          traj.saveToFile("/","test.txt", true);
-        }*/
-
-
-
-      }
-
-      // Implement herre different ways of reaching the desired configuration
-      // 1. linear trajectory with set max_velocity
-      // 2. along a DMP trajectory
-
-
-
-
-
-      for(int i = 0; i<n_joints; i++)
-      {
-        //RCLCPP_INFO(this->get_logger(), "Saving as desired configuration: '(%f, %f, %f, %f, %f, %f)'", desired_joint_configuration[0], desired_joint_configuration[1], desired_joint_configuration[2], desired_joint_configuration[3], desired_joint_configuration[4], desired_joint_configuration[5]);
-        diffs[i] = desired_joint_configuration[i] - current_joint_configuration[i];
-        //RCLCPP_INFO(this->get_logger(), "Difference of joint %d: %f -> results in velocity: %f", i, difference, dev2vel(difference))
-
-        vel = dev2vel2(diffs[i]);
-
-
-
-        message.data.push_back(vel);
-
-
-      }
-      vels = message.data;
-
-
-
-
-      //message.data = "Hello, world! " + std::to_string(count_++);
-
-      //RCLCPP_INFO(this->get_logger(), "Publishing: '(%f, %f, %f, %f, %f, %f)'", message.data[0], message.data[1], message.data[2], message.data[3], message.data[4], message.data[5]);
-
-      //if(get_time_stamp){
-        stamp = clk.now();
-        //RCLCPP_INFO(this->get_logger(), "Event trigger received! Sending to velocity controller at time %f -> elapsed time since receiving pose: %f", stamp.seconds(), stamp.seconds()-time_pose_received[1]);
-
-
-      publisher_->publish(message);
-      if(get_time_stamp){
-        //time_pose_received.push_back(stamp.seconds());
-        if(counter>=30){
-          if(save_params_to_csv){
-            for (int i = 0; i<(int)history.size();i++){
-              for(int j=0;j<(int)history[0].size();j++){
-                myfile << history[i][j] << ",";
-              }
-              myfile << "\n";
+          // Save history to CSV file
+          for (const auto& row : history)
+          {
+            for (const auto& item : row)
+            {
+              myfile << item << ",";
             }
-            myfile.close();
-            save_params_to_csv = false;
-            RCLCPP_INFO(this->get_logger(), "Finished writing times to file to %s: %d, history size: %d",filename.c_str(),control_rate_ms,(int)history.size());
+            myfile << "\n";
           }
-
-          counter = 0;
-
-          history.clear();
+          myfile.close();
+          save_params_to_csv = false;
+          RCLCPP_INFO(this->get_logger(), "Finished writing times to file to %s: %d, history size: %d",
+                      filename.c_str(), control_rate_ms, static_cast<int>(history.size()));
         }
-        secs = time_stamps[1];
-        history.push_back({(float)trigger,stamp.seconds()-secs, eef_vc_stamp.seconds()-secs,time_stamps[2]-secs,time_stamps[3]-secs,time_stamps[4]-secs,time_stamps[5],tcp_position[0],tcp_position[1],tcp_position[2],vels[0],vels[1],vels[2],vels[3],vels[4],vels[5],desired_joint_configuration[0],desired_joint_configuration[1],desired_joint_configuration[2],desired_joint_configuration[3],desired_joint_configuration[4],desired_joint_configuration[5],current_joint_configuration[0],current_joint_configuration[1],current_joint_configuration[2],current_joint_configuration[3],current_joint_configuration[4],current_joint_configuration[5]});
-        get_time_stamp = false;
-        counter ++;
-        //RCLCPP_INFO(this->get_logger(), "Finished writing times to file: %d",secs);
+
+        // Clear history
+        counter = 0;
+        history.clear();
       }
+
+      // Save data to history
+      float secs = time_stamps[1];
+      history.push_back({static_cast<float>(trigger), stamp.seconds() - secs, eef_vc_stamp.seconds() - secs,
+                          time_stamps[2] - secs, time_stamps[3] - secs, time_stamps[4] - secs, time_stamps[5],
+                          tcp_position[0], tcp_position[1], tcp_position[2], vels[0], vels[1], vels[2], vels[3], vels[4], vels[5],
+                          desired_joint_configuration[0], desired_joint_configuration[1], desired_joint_configuration[2],
+                          desired_joint_configuration[3], desired_joint_configuration[4], desired_joint_configuration[5],
+                          current_joint_configuration[0], current_joint_configuration[1], current_joint_configuration[2],
+                          current_joint_configuration[3], current_joint_configuration[4], current_joint_configuration[5]});
+      get_time_stamp = false;
+      counter++;
     }
-    rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
-    rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
-    rclcpp::Service<custom_interfaces::srv::RobConf>::SharedPtr service_;
-    std::shared_ptr<tf2_ros::TransformListener> tf_listener_ {nullptr};
-    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  }
+
+  // Declare class members
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
+  rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr publisher_;
+  rclcpp::Service<custom_interfaces::srv::RobConf>::SharedPtr service_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_{ nullptr };
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
 };
 
-/*
-class JointStateSubscriber : public rclcpp::Node
-{
-  public:
-    JointStateSubscriber()
-    : Node("joint_state_subscriber")
-    {
-      subscription_ = this->create_subscription<sensor_msgs::msg::JointState>(
-      "/joint_states", 100, std::bind(&JointStateSubscriber::topic_callback, this, _1));
-    }
-
-  private:
-    void topic_callback(const sensor_msgs::msg::JointState & msg) const
-    {
-      for(int i = 0; i < n_joints; i++)
-      {
-        current_joint_configuration[i] = msg.position[i];
-      }
-      RCLCPP_INFO(this->get_logger(), "Current joint configuration: '(%f, %f, %f, %f, %f, %f)'", current_joint_configuration[0], current_joint_configuration[1], current_joint_configuration[2], current_joint_configuration[3], current_joint_configuration[4], current_joint_configuration[5]);
-
-    }
-    rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
-};*/
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-
-
-
   rclcpp::spin(std::make_shared<VelocityPublisher>());
 
   rclcpp::shutdown();

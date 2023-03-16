@@ -18,33 +18,17 @@ def gen_3x3_grid_locations(first_cell_coords, x_step, y_step):
     counter = 0
     for i in range(0,grid_nx):
         for j in range(0,grid_ny):
-
             grid_locations[counter,:] = [first_cell_coords[0]+(i)*x_step,first_cell_coords[1]+(j)*y_step,0.025]
             counter = counter + 1
-
     return grid_locations
 
-def gen_3_noisy_towers(first_cell_coords, x_step, noise_factor):
-    height = 4
-
-    tower_locations = np.zeros((grid_nx*grid_ny,3))
-    random_noise = noise_factor*np.random(height)
-
-
-
-    return tower_locations
-
-
-
 def gen_object_list(number_of_objects):
-
     objects = []
     colors = ['grey','violet','indigo','blue','green','yellow','orange','red']
     coords_first_cell = [-0.2,-0.7] #[-0.2,0.5]
     x_step = 0.1
     y_step = 0.15
     grid_positions = gen_3x3_grid_locations(coords_first_cell,x_step,y_step)
-
 
     for i in range(number_of_objects):
         object_name = 'cube_tag'+str(i)+'_'+colors[i]
@@ -61,23 +45,15 @@ def gen_object_list(number_of_objects):
 
     #add base plate for the translation experiment
     objects.append({'name': 'translation_base', 'x_pose': -0.1+0.001, 'y_pose': 0.65-0.001+0.06, 'z_pose': 0.0, 'qx': 0.0, 'qy': 0.0, 'qz': 1.0, 'qw': 0.0})
-    #objects.append({'name': 'translation_base', 'x_pose': 1, 'y_pose': 3, 'z_pose': 0.2})
-
-
     return objects
 
 def generate_launch_description():
-
-
     pkg_main = get_package_share_directory('main_pkg')
-    #urdf = os.path.join(get_package_share_directory('picknplace_world'), 'urdf/', 'cube_tag0_grey.urdf')
-    #assert os.path.exists(urdf), "The cube_tag0_grey.urdf-file doesnt exist in "+str(urdf)
-
 
     # Names and poses of the objects
     objects = gen_object_list(8)
 
-    # We create the list of spawn objects commands
+    # Create the list of spawn objects commands
     spawn_objects_cmds = []
     for object in objects:
         urdf = os.path.join(get_package_share_directory('main_pkg'), 'urdf/cubes/', object['name']+'.urdf')
@@ -87,17 +63,17 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(os.path.join(pkg_main, 'launch',
                                                            'spawn_cube_launch.py')),
                 launch_arguments={
-                                  'object_urdf': urdf,
-                                  'x': TextSubstitution(text=str(object['x_pose'])),
-                                  'y': TextSubstitution(text=str(object['y_pose'])),
-                                  'z': TextSubstitution(text=str(object['z_pose'])),
-                                  'qx': TextSubstitution(text=str(object['qx'])),
-                                  'qy': TextSubstitution(text=str(object['qy'])),
-                                  'qz': TextSubstitution(text=str(object['qz'])),
-                                  'qw': TextSubstitution(text=str(object['qw'])),
-                                  'object_name': object['name'],
-                                  'object_namespace': object['name']
-                                  }.items()))
+                    'object_urdf': urdf,
+                    'x': TextSubstitution(text=str(object['x_pose'])),
+                    'y': TextSubstitution(text=str(object['y_pose'])),
+                    'z': TextSubstitution(text=str(object['z_pose'])),
+                    'qx': TextSubstitution(text=str(object['qx'])),
+                    'qy': TextSubstitution(text=str(object['qy'])),
+                    'qz': TextSubstitution(text=str(object['qz'])),
+                    'qw': TextSubstitution(text=str(object['qw'])),
+                    'object_name': object['name'],
+                    'object_namespace': object['name']
+                }.items()))
 
     # Create the launch description and populate
     ld = LaunchDescription()

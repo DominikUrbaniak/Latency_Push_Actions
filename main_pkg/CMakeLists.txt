@@ -51,7 +51,7 @@ install(
 add_executable(world_setup src/world_setup.cpp)
 ament_target_dependencies(world_setup rclcpp geometry_msgs visualization_msgs gazebo_msgs custom_interfaces tf2_ros tf2)
 
-add_executable( velocity_controller src/velocity_controller_gpt.cpp )
+add_executable( velocity_controller src/velocity_controller.cpp )
 ament_target_dependencies(velocity_controller rclcpp std_msgs sensor_msgs custom_interfaces tf2 tf2_ros)
 
 

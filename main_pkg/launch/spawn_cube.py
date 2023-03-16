@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-"""Script used to spawn a robot in a generic position."""
+"""Script used to spawn a objects into the experiment world."""
 
 import argparse
 import os
@@ -52,40 +52,11 @@ def main():
         client.wait_for_service()
         node.get_logger().info('...connected!')
 
-    # sdf_file_path = os.path.join(
-    #     get_package_share_directory('amazon_robot_gazebo'), 'models',
-    #     'amazon_robot2', 'model.sdf')
     urdf_file_path = args.robot_urdf
     print(urdf_file_path)
 
-    # We need to remap the transform (/tf) topic so each robot has its own.
-    # We do this by adding `ROS argument entries` to the urdf file for
-    # each plugin broadcasting a transform. These argument entries provide the
-    # remapping rule, i.e. /tf -> /<robot_id>/tf
     tree = ET.parse(urdf_file_path)
     root = tree.getroot()
-    #imu_plugin = None
-    #diff_drive_plugin = None
-    #for plugin in root.iter('plugin'):
-#        if 'differential_drive_controller' in plugin.attrib.values():
-#            diff_drive_plugin = plugin
-#        elif 'box_bot_imu_plugin' in plugin.attrib.values():
-#            imu_plugin = plugin
-
-    # We change the namespace to the robots corresponding one
-    #tag_diff_drive_ros_params = diff_drive_plugin.find('ros')
-    #tag_diff_drive_ns = ET.SubElement(tag_diff_drive_ros_params, 'namespace')
-    #tag_diff_drive_ns.text = '/' + args.robot_namespace
-    #ros_tf_remap = ET.SubElement(tag_diff_drive_ros_params, 'remapping')
-    #ros_tf_remap.text = '/tf:=/' + args.robot_namespace + '/tf'
-
-    # if imu_plugin is not None:
-    #     tag_imu_ros_params = imu_plugin.find('ros')
-    #     tag_imu_ns = ET.SubElement(tag_imu_ros_params, 'namespace')
-    #     tag_imu_ns.text = '/' + args.robot_namespace + '/imu'
-    # else:
-    #     print("ERROR>>>>>>>>>>>>>>>>>>>>> IMU NOT FOUND")
-
 
     # Set data for request
     request = SpawnEntity.Request()

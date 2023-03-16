@@ -17,7 +17,7 @@ find_package(geometry_msgs)
 find_package(tf2)
 find_package(tf2_ros)
 
-add_executable( push_translation_gazebo src/push_translation_gazebo_gpt.cpp )
+add_executable( push_translation_gazebo src/push_translation_gazebo.cpp )
 ament_target_dependencies(push_translation_gazebo rclcpp custom_interfaces gazebo_msgs kinenik geometry_msgs tf2 tf2_ros)
 
 add_executable( push_edge_gazebo src/push_edge_gazebo.cpp )

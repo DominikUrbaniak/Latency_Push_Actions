@@ -6,26 +6,20 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
-
-#include "custom_interfaces/srv/rob_conf.hpp"
-
-#include <gazebo_msgs/msg/model_states.hpp>
-
-#include <geometry_msgs/msg/pose.hpp>
-
-#include <kinenik/kinenik_ur.h>
-
 #include <iostream>
 #include <fstream>
+
+#include "custom_interfaces/srv/rob_conf.hpp"
+#include <gazebo_msgs/msg/model_states.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include <gazebo_msgs/srv/get_entity_state.hpp>
+
+#include <kinenik/kinenik_ur.h>
 
 #include "tf2/exceptions.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
-#include "geometry_msgs/msg/transform_stamped.hpp"
-
-#include <gazebo_msgs/srv/get_entity_state.hpp>
-
-//#include <dmp/Trajectory.hpp>
 
 using namespace std::chrono_literals;
 
@@ -46,36 +40,22 @@ bool start = false; //when true, the velocity control node also logs parameters 
 std::vector<double> goal_states;
 double average = 0;
 int latency_ms = 0;
-//std::chrono::milliseconds latency_ms = 0ms;
-std::ofstream myfile_gazebo;
-std::string filename_gazebo;
-std::ofstream myfile_control;
-std::string filename_control;
 std::ofstream myfile;
 std::string filename;
 
 std::vector<std::vector<double>> history;
-std::vector<std::vector<double>> history_gazebo;
-std::vector<std::vector<double>> history_control;
 
 double cube_y_init = 0.65;
-//int vc_scaler = 10000;
 
 int initial_cube_id = 3;
 
 double x_offset = -0.027;
 
-double tcp_x = 0.1 +x_offset;// + x_rot_offset;
-//double tcp_y_init = -0.5;
-//double tcp_y_init2 = -0.59;//-0.61;
-//double tcp_y = tcp_y_init;
-//double tcp_z = 0.132;
-//double tcp_qr = 0;
+double tcp_x = 0.1 +x_offset;
 double tcp_qp = M_PI;
 double tcp_qy = 0;
 double tcp_gripper = 0.6;
 double tcp_y_init = -0.39;
-double tcp_y_init2 = -0.48;//-0.61;
 double tcp_y = tcp_y_init;
 double tcp_z = 0.08;
 double tcp_qr = 0.8;
@@ -85,7 +65,6 @@ double cube_y_goal = cube_y_init+push_distance;
 
 std::string reference_frame = "base_link";
 
-int rate = 100;
 double step_size = 0.001;
 rclcpp::Clock clk;
 rclcpp::Time start_time;
@@ -93,7 +72,6 @@ rclcpp::Time time_pose_sensed;
 rclcpp::Time time_pose_delayed;
 rclcpp::Time time_eef;
 rclcpp::Time time_stamp;
-//double time_stamps[5] -> float64[] is std::vector<double>;
 double time_stamp_secs;
 double seconds_pose_sensed;
 double seconds_pose_delayed;
@@ -113,7 +91,6 @@ int back_up_counter_limit = 30;
 geometry_msgs::msg::TransformStamped transform_ur_eef;
 std::vector<double> tcp_pose;
 std::vector<double> ik_offsets = {0.025,-0.002,0.055};
-//std::vector<double> ik_offsets = {0.0,-0.0,0.0};
 std::vector<double> multipliers = {-1,-1,1};
 
 std::vector<double> latency_distribution;
@@ -220,7 +197,7 @@ void SetWorld()
     obj.setname("cube_tag0_grey");
     obj.setx(-0.4);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -234,7 +211,7 @@ void SetWorld()
     obj.setname("cube_tag1_violet");
     obj.setx(-0.3);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -247,7 +224,7 @@ void SetWorld()
     obj.setname("cube_tag2_indigo");
     obj.setx(-0.2);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -260,7 +237,7 @@ void SetWorld()
     obj.setname("cube_tag3_blue");
     obj.setx(-0.1);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -273,7 +250,7 @@ void SetWorld()
     obj.setname("cube_tag4_green");
     obj.setx(0.0);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -286,7 +263,7 @@ void SetWorld()
     obj.setname("cube_tag5_yellow");
     obj.setx(0.1);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -299,7 +276,7 @@ void SetWorld()
     obj.setname("cube_tag6_orange");
     obj.setx(0.2);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -312,7 +289,7 @@ void SetWorld()
     obj.setname("cube_tag7_red");
     obj.setx(0.3);
     obj.sety(cube_y_init);
-    obj.setz(0.025);//reference frame defined in the middle point
+    obj.setz(0.025);
     obj.setqx(0);
     obj.setqy(0);
     obj.setqz(0);
@@ -336,11 +313,9 @@ class GazeboUpdateNode : public rclcpp::Node
       client_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
       timer_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-      // timer receives pose 30 times/second (similar to camera)
       timer_ptr_ = this->create_wall_timer(std::chrono::microseconds(frame_rate_microsec), std::bind(&GazeboUpdateNode::timer_callback, this),timer_cb_group_);
       client_ptr_ = this->create_client<gazebo_msgs::srv::GetEntityState>("/gazebo_state/get_entity_state",rmw_qos_profile_services_default,client_cb_group_);
 
-      //RCLCPP_INFO(this->get_logger(), "Sending request");
       while (!client_ptr_->wait_for_service(1s)) {
         if (!rclcpp::ok()) {
           RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Interrupted while waiting for the service. Exiting.");
@@ -348,7 +323,6 @@ class GazeboUpdateNode : public rclcpp::Node
         }
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
       }
-
     }
 
 
@@ -359,25 +333,18 @@ class GazeboUpdateNode : public rclcpp::Node
     rclcpp::TimerBase::SharedPtr timer_ptr_;
     rclcpp::Client<gazebo_msgs::srv::GetEntityState>::SharedPtr client_ptr_;
 
-    //int counter_;
-
     void timer_callback()
     {
       auto request = std::make_shared<gazebo_msgs::srv::GetEntityState::Request>();
-      //auto delay_request = std::make_shared<gazebo_msgs::srv::GetEntityState::Request>();
       request->name = objects[3].getname();
-      //RCLCPP_INFO(this->get_logger(), "Sending request");
       auto result = client_ptr_->async_send_request(request);
       std::future_status status = result.wait_for(10s);  // timeout to guarantee a graceful finish
       if (status == std::future_status::ready) {
-        //RCLCPP_INFO(this->get_logger(), "Received response");
         get_model_state_pose = result.get()->state.pose;
         get_model_state_euler = ToEulerAngles(get_model_state_pose.orientation);
 
         time_pose_sensed = clk.now();
         seconds_pose_sensed = time_pose_sensed.seconds()-secs;
-        //RCLCPP_INFO(this->get_logger(), "stamp set: %f", time_pose_sensed.seconds());
-        //
 
         //latency_ms = 0;
         if(set_delay_mode==1){
@@ -385,15 +352,10 @@ class GazeboUpdateNode : public rclcpp::Node
           rclcpp::sleep_for(std::chrono::microseconds(latency_ms));
         }
 
-        //
         time_pose_delayed = clk.now();
         seconds_pose_delayed = time_pose_delayed.seconds()-secs;
-        //RCLCPP_INFO(this->get_logger(), "delayed stamp set: %f", time_pose_delayed.seconds());
         get_model_state_pose_delayed = get_model_state_pose;
         get_model_state_euler_delayed = ToEulerAngles(get_model_state_pose_delayed.orientation);
-        //RCLCPP_INFO(this->get_logger(), "delayed pose set");
-        //RCLCPP_INFO(this->get_logger(), "pose set, x: %f, y: %f", get_model_state_pose.position.x, get_model_state_pose.position.y);
-        //history_gazebo.push_back({seconds_pose_sensed,seconds_pose_delayed,(float)latency_ms,get_model_state_pose.position.x,get_model_state_pose.position.y,get_model_state_euler.yaw});
       }
     }
 };
@@ -412,7 +374,6 @@ class RobotPushNode : public rclcpp::Node
       tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
       tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-      //RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "initial robot config: (%f,%f,%f,%f,%f,%f)", tcp_x, tcp_y_, tcp_z, tcp_qr, tcp_qp, tcp_qr);
       myrobot.solveIK(tcp_x, tcp_y_init, tcp_z, tcp_qr, tcp_qp, tcp_qy, theta_sol_);
 
       while (!client_ptr_->wait_for_service(1s)) {
@@ -422,7 +383,6 @@ class RobotPushNode : public rclcpp::Node
         }
         RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "service not available, waiting again...");
       }
-
     }
 
 
@@ -448,14 +408,12 @@ class RobotPushNode : public rclcpp::Node
         transform_ur_eef = tf_buffer_->lookupTransform(
           reference_frame, "wrist_3_link",
           tf2::TimePointZero);
-        //time_eef = clk.now();
       } catch (const tf2::TransformException & ex) {
         RCLCPP_INFO(
           this->get_logger(), "Could not transform %s to %s: %s",
           reference_frame.c_str(), "wrist_3_link", ex.what());
         return;
       }
-
 
       theta_sol_previous_ = theta_sol_;
 
@@ -467,7 +425,6 @@ class RobotPushNode : public rclcpp::Node
 
       if(get_model_state_pose_delayed.position.y >= cube_y_goal){
         trigger = 1;
-        //history_control.push_back({seconds_eef,tcp_pose[0],tcp_pose[1],tcp_pose[2],tcp_pose[5],get_model_state_pose_delayed.position.y,tcp_y_,trigger});
         tcp_y_ += step_size;
         history.push_back({seconds_eef,tcp_pose[0],tcp_pose[1],tcp_pose[2],tcp_pose[5],tcp_y_,(float)trigger,seconds_pose_sensed,seconds_pose_delayed,(float)latency_ms,get_model_state_pose.position.x,get_model_state_pose.position.y,get_model_state_euler.yaw});
         time_stamp = clk.now();
@@ -478,32 +435,23 @@ class RobotPushNode : public rclcpp::Node
         final_request->event_trigger = true;
 
         final_request->time_stamps = {(float)trigger,start_time.seconds(),time_eef.seconds(),time_pose_sensed.seconds(),time_pose_delayed.seconds(),time_stamp.seconds()-time_stamp_secs};
-        //final_request->vc_scaler = vc_scaler;
-        //final_request->conf = {(float)theta_sol_previous_[0][0],(float)theta_sol_previous_[0][1],(float)theta_sol_previous_[0][2],(float)theta_sol_previous_[0][3],(float)theta_sol_previous_[0][4],(float)theta_sol_previous_[0][5], (float)tcp_gripper};
         final_request->conf = {(float)theta_sol_[0][0],(float)theta_sol_[0][1],(float)theta_sol_[0][2],(float)theta_sol_[0][3],(float)theta_sol_[0][4],(float)theta_sol_[0][5], (float)tcp_gripper};
         auto final_result = client_ptr_->async_send_request(final_request);
         std::future_status final_status = final_result.wait_for(10s);  // timeout to guarantee a graceful finish
         if (final_status == std::future_status::ready) {
           RCLCPP_INFO(this->get_logger(), "Object reached goal %f, back up!, %d", cube_y_goal, back_up_counter);
           back_up_counter++;
-          //rclcpp::sleep_for(100ms);
         }
-
-
       }
       else{
         trigger = 0;
-        //history_control.push_back({seconds_eef,tcp_pose[0],tcp_pose[1],tcp_pose[2],tcp_pose[5],get_model_state_pose_delayed.position.y,tcp_y_,trigger,seconds_pose_sensed,seconds_pose_delayed,(float)latency_ms,get_model_state_pose.position.x,get_model_state_pose.position.y,get_model_state_euler.yaw});
-
         tcp_y_ -= step_size;
         history.push_back({seconds_eef,tcp_pose[0],tcp_pose[1],tcp_pose[2],tcp_pose[5],tcp_y_,(float)trigger,seconds_pose_sensed,seconds_pose_delayed,(float)latency_ms,get_model_state_pose.position.x,get_model_state_pose.position.y,get_model_state_euler.yaw});
         time_stamp = clk.now();
         time_stamp_secs = time_stamp.seconds();
         myrobot.solveIK(tcp_x, tcp_y_, tcp_z, tcp_qr, tcp_qp, tcp_qy, theta_sol_);
         time_stamp = clk.now();
-        //RCLCPP_INFO(this->get_logger(), "tcp_y: %f, cube y:%f, cube delayed y: %f", tcp_y_, get_model_state_pose.position.y, get_model_state_pose_delayed.position.y);
         auto request = std::make_shared<custom_interfaces::srv::RobConf::Request>();
-        //auto delay_request = std::make_shared<gazebo_msgs::srv::GetEntityState::Request>();
         if(theta_sol_.size()!=0)
         {
           if(start){
@@ -515,7 +463,6 @@ class RobotPushNode : public rclcpp::Node
           }
           request->event_trigger = false;
           request->time_stamps = {(float)trigger,start_time.seconds(),time_eef.seconds(),time_pose_sensed.seconds(),time_pose_delayed.seconds(),time_stamp.seconds()-time_stamp_secs};
-          //request->vc_scaler = vc_scaler;
           request->conf = {(float)theta_sol_[0][0],(float)theta_sol_[0][1],(float)theta_sol_[0][2],(float)theta_sol_[0][3],(float)theta_sol_[0][4],(float)theta_sol_[0][5], (float)tcp_gripper};
         }
         else
@@ -548,20 +495,13 @@ int main(int argc, char * argv[])
   srand ( time(NULL) );
   // Set the rate parameter from the command line
   if (argc == 4) {
-
-    //cube_y_goal= cube_y_init + atof(argv[2]);
-    //latency_ms = atoi(argv[3]);
     network = argv[2];
     step_size = atof(argv[3]);
     tcp_y_init = tcp_y_init - atof(argv[1])-step_size*(float)rand() / double(RAND_MAX);
     RCLCPP_INFO(node->get_logger(), "netork: %s, target y: %f, tcp_y_init: %f, step_size: %f ", network.c_str(), cube_y_goal, tcp_y_init, step_size);
   }
   else if(argc == 7){
-    //tcp_y_init = tcp_y_init - atof(argv[1]);
-    //cube_y_goal= cube_y_init + atof(argv[2]);
-    //latency_ms = atoi(argv[3]);
     network = argv[2];
-    //step_size = atof(argv[3]);
     step_size = atof(argv[3]);
     tcp_y_init = tcp_y_init - atof(argv[1])-step_size*(float)rand() / double(RAND_MAX);
     framerate = atoi(argv[4]);
@@ -578,7 +518,6 @@ int main(int argc, char * argv[])
 
   auto gazebo_update_node = std::make_shared<push_translation_main::GazeboUpdateNode>();
   auto push_node = std::make_shared<push_translation_main::RobotPushNode>();
-  //auto robot_setup_node = std::make_shared<push_experiment_02::RobotSetupNode>();
   rclcpp::executors::MultiThreadedExecutor executor;
   executor.add_node(gazebo_update_node);
   executor.add_node(push_node);
@@ -617,28 +556,12 @@ int main(int argc, char * argv[])
     else{
       filename = dir_path + std::to_string(secs) + "_" + std::to_string(set_delay_mode) + "mode_"+ std::to_string(control_rate_ms)+ "ms_" + std::to_string(frame_rate_microsec)+ "microsecs_"+ std::to_string(step_size) + "steps.csv";
     }
-    //filename = "docs/data/push_translation/" + std::to_string(secs) + "_" + std::to_string(set_delay_mode) + "mode_"+ std::to_string(control_rate_ms)+ "ms_" + std::to_string(frame_rate_microsec)+ "microsecs_" + network.c_str() +"_"+ std::to_string(step_size) + "steps.csv";//+ std::to_string(computation_latency/1000) + "_" + network.c_str()
-    //myfile_gazebo.open(filename_gazebo);
-    //myfile_control.open(filename_control);
 
     myfile.open(filename);
     myfile << "secs_eef,tcp_x,tcp_y,tcp_z,tcp_yaw,tcp_y_,trigger,secs_sensed,secs_delayed,latency,cube_x,cube_y,cube_yaw\n";
   }
   executor.spin();
 
-  /*for(int i=0;i<(int)history_gazebo.size();i++){
-    for(int j=0;j<(int)history_gazebo[0].size();j++){
-      myfile_gazebo << history_gazebo[i][j] << ",";
-    }
-    myfile_gazebo << "\n";
-  }
-
-  for(int i=0;i<(int)history_control.size();i++){
-    for(int j=0;j<(int)history_control[0].size();j++){
-      myfile_control << history_control[i][j] << ",";
-    }
-    myfile_control << "\n";
-  }*/
   if(save_params_to_csv){
     for(int i=0;i<(int)history.size();i++){
       for(int j=0;j<(int)history[0].size();j++){
@@ -647,8 +570,6 @@ int main(int argc, char * argv[])
       myfile << "\n";
     }
     RCLCPP_INFO(node->get_logger(), "Successfully saved data to csv file (%s)", filename.c_str());
-    //myfile_gazebo.close();
-    //myfile_control.close();
     myfile.close();
   }
   rclcpp::shutdown();

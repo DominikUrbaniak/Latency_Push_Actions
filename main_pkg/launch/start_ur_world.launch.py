@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-# -*- coding: utf-8 -*-
 import os
 
 from ament_index_python.packages import get_package_share_directory
@@ -16,8 +14,7 @@ def generate_launch_description():
     pkg_gripper = get_package_share_directory('robotiq_2f_model')
     pkg_ur = get_package_share_directory('ur_description')
 
-    # We get the whole install dir
-    # We do this to avoid having to copy or softlink manually the packages so that gazebo can find them
+    # Get the whole install dir
     ur_description_package_name = "ur_description"
     ur_install_dir = get_package_prefix(ur_description_package_name)
 
@@ -31,21 +28,16 @@ def generate_launch_description():
     gazebo_models_path = os.path.join(pkg, 'worlds')
     gazebo_models_path_gripper = os.path.join(pkg_gripper, 'models')
     gazebo_models_path_ur = os.path.join(pkg_ur, 'meshes')
-    # os.environ["GAZEBO_MODEL_PATH"] = gazebo_models_path
 
     if 'GAZEBO_MODEL_PATH' in os.environ:
         os.environ['GAZEBO_MODEL_PATH'] =  os.environ['GAZEBO_MODEL_PATH'] + ':' + cube_install_dir + '/share' + ':' + os.environ['GAZEBO_MODEL_PATH'] + ':' + gazebo_models_path + '/share' + ':' + os.environ['GAZEBO_MODEL_PATH'] + ':' + ur_install_dir + '/share' + ':' + os.environ['GAZEBO_MODEL_PATH'] + ':' + gripper_install_dir + '/share'
     else:
         os.environ['GAZEBO_MODEL_PATH'] =  cube_install_dir + "/share" + ':' + gazebo_models_path + "/share" + ':' + ur_install_dir + "/share" + ':' + gripper_install_dir + "/share"
-        #os.environ['GAZEBO_MODEL_PATH'] =  cube_install_dir + "/share" + ':' + gazebo_models_path + ',' + gripper_install_dir + "/share" + ':' + gazebo_models_path_gripper
-        #os.environ['GAZEBO_MODEL_PATH'] =  cube_install_dir + "/share" + ',' + gripper_install_dir + "/share" + ':' + gazebo_models_path_gripper
 
     if 'GAZEBO_PLUGIN_PATH' in os.environ:
         os.environ['GAZEBO_PLUGIN_PATH'] + ':' + ur_install_dir + '/lib' + ':' + os.environ['GAZEBO_PLUGIN_PATH'] + ':' + cube_install_dir + '/lib'
     else:
         os.environ['GAZEBO_PLUGIN_PATH'] = ur_install_dir + '/lib' + ':' + cube_install_dir + '/lib'
-
-
 
     print("GAZEBO MODELS PATH=="+str(os.environ["GAZEBO_MODEL_PATH"]))
     print("GAZEBO PLUGINS PATH=="+str(os.environ["GAZEBO_PLUGIN_PATH"]))

@@ -9,26 +9,22 @@
 #include <functional>
 #include <math.h>
 #include <string.h>
-
-#include "custom_interfaces/srv/rob_conf.hpp"
-
-#include <gazebo_msgs/srv/set_entity_state.hpp>
-
-#include <gazebo_msgs/msg/model_states.hpp>
-
-#include <geometry_msgs/msg/pose.hpp>
-
-#include <kinenik/kinenik_ur.h>
-
 #include <iostream>
 #include <fstream>
+
+#include "custom_interfaces/srv/rob_conf.hpp"
+#include <gazebo_msgs/srv/set_entity_state.hpp>
+#include <gazebo_msgs/msg/model_states.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include <gazebo_msgs/srv/get_entity_state.hpp>
+
+#include <kinenik/kinenik_ur.h>
 
 #include "tf2/exceptions.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
-#include "geometry_msgs/msg/transform_stamped.hpp"
 
-#include <gazebo_msgs/srv/get_entity_state.hpp>
 
 using namespace std::chrono_literals;
 
@@ -37,23 +33,19 @@ int n_runs = 4;
 std::vector<double> goal_states;
 double average = 0;
 int latency_ms = 100;
-//std::chrono::milliseconds latency_ms = 0ms;
 std::ofstream myfile;
 std::string filename;
-
 double cube_y_init = 0.65;
 double cube_offset = 0.003;
 double cube_x_init = -0.1;
 double cube_dim = 0.05;
-
 int initial_cube_id = 3;
 double x_offset = -0.027;
 double x_rot_offset = 0.01;
-double tcp_x = -0.01;//0.1 +x_offset + x_rot_offset;
+double tcp_x = -0.01;
 double tcp_y_init = -0.4;
-double tcp_y_init2 = -0.59;//-0.61;
 double tcp_y = tcp_y_init;
-double tcp_z = 0.13;//0.132+cube_dim;
+double tcp_z = 0.13;
 double tcp_qr = 0.8;
 double tcp_qp = M_PI;
 double tcp_qy = 0.8;
@@ -61,14 +53,12 @@ double tcp_gripper = 0.8;
 
 double cube_y_goal = 0.7;
 
-
 std::string fromFrameRel = "base_link";
 std::string toFrameRel = "wrist_3_link";
 
 int set_cubes_after_number = 10;
 int counter = 0;
 
-int rate = 100;
 double step_size = 0.001;
 rclcpp::Clock clk;
 rclcpp::Time time_pose_sensed;

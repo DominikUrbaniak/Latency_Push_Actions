@@ -7,11 +7,13 @@ Implementation of linear push actions with UR5e, Robotiq 2F-85 gripper and custo
 - IOC-UPC inverse kinematics library for UR robots (kinenik): https://gitioc.upc.edu/robots/kinenik
 
 ## Packages in this repository
-- pkg_main: setup of the gazebo environment with robot, gripper and cubes, and velocity controller
-- pkg_experiments: Two experiments for pushing a cube in a straight line or to change its rotation
+- main_pkg: setup of the gazebo environment with robot, gripper and cubes, and velocity controller
+- experiments: Two experiments for pushing a cube in a straight line or to change its rotation
+- custom_interfaces: Includes the custom messages and services
+- robotiq_2f_model: model from https://github.com/beta-robots/robotiq/tree/master/robotiq_2f_model wrapped in ROS2 package
 
 ## Run experiments
-*ros2 launch pkg_main main.launch.py*
+*ros2 launch main_pkg main.launch.py*
 
 Choose one experiment
 

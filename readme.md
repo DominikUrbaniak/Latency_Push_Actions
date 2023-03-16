@@ -1,6 +1,6 @@
 # Latency Impact on Robotic Push Actions for Edge Computing Scenarios
 
-Implementation of linear push actions with UR5e, Robotiq 2F-85 gripper and custom cube using Ubuntu 22.04, ROS2 Humble and Gazebo 11.10.2
+Implementation of linear push actions with UR5e, Robotiq 2F-85 gripper and custom cube using Ubuntu 22.04, ROS2 Humble and Gazebo 11
 
 ## External Packages 
 (to be included into the workspace along the packages from this repository)

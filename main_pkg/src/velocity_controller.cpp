@@ -75,7 +75,7 @@ geometry_msgs::msg::TransformStamped transform_ur_eef;  // transform from UR bas
 std::ofstream myfile;                                   // file for logging data
 std::string filename;                                   // name of log file
 bool save_params_to_csv = false;                        // flag to save parameters to CSV file
-std::string dir_path = "docs/data/push_translation/";   // path to save CSV file
+std::string dir_path = "";                              // path to save CSV file
 
 std::map<std::string, int> map_joints_to_joint_states_id = { // map joint names to joint states IDs
   { "shoulder_pan_joint", 0 },

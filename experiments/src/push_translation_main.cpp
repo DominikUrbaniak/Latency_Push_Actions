@@ -30,9 +30,9 @@ int frame_rate_microsec = (float)1/framerate*1000*1000;
 int control_rate = 125;
 int control_rate_ms = (float)1/control_rate * 1000;
 int set_delay_mode = 0; // 1: only communication delay,  else: no delay
-bool save_params_to_csv = false;
-std::string dir_path = "docs/data/push_translation/";
-std::string network_directory = "docs/data/AAU_latency/";
+bool save_params_to_csv = true;
+std::string dir_path = "";
+std::string network_directory = "src/latency_distributions/";
 bool start = false; //when true, the velocity control node also logs parameters into a csv file
 
 //###################   General parameters  ############################

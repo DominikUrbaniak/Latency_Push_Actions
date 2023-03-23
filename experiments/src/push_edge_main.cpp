@@ -37,8 +37,8 @@ int control_rate_ms = (float)1/control_rate * 1000;
 int set_delay_mode = 0; //1: only communication delay, 2: communication & computation delay, 3: only computation delay,  else: no delay
 int computation_latency = 170000;
 bool save_params_to_csv = false;
-std::string dir_path = "docs/data/push_translation/";
-std::string network_directory = "docs/data/AAU_latency/";
+std::string dir_path = "docs/data/edge/";
+std::string network_directory = "src/latency_distributions/";
 bool start = false; //when true, the velocity control node also logs parameters into a csv file
 
 //###################   General parameters  ############################

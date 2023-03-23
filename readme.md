@@ -23,11 +23,11 @@ Choose one experiment and execute following commands in a second terminal:
 
 1st experiment: 
 - *ros2 run experiments push_translation_gazebo 0.08*
-- *ros2 run experiments push_translation_main 0.08 private5g 0.0006 60 125 0*
+- *ros2 run experiments push_translation_main 0.08 private5g 0.0006 60 125 1*
 
 2nd experiment: 
 - *ros2 run experiments push_edge_gazebo 0.1*
-- *ros2 run experiments push_edge_main 0.1 wifi5_loaded 0.0001 3 170*
+- *ros2 run experiments push_edge_main 0.1 wifi5_loaded 0.0001 2 49*
 
 ##
 
